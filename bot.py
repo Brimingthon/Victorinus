@@ -12,8 +12,9 @@ INTENTS.members = True
 
 bot = commands.Bot(command_prefix="!", intents=INTENTS)
 
-with open("../Victorinus/questions.json", "r", encoding="utf-8") as f:
-    QUESTIONS = json.load(f)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+with open(os.path.join(BASE_DIR, "questions.json"), "r", encoding="utf-8") as f:
+    questions = json.load(f)
 
 if os.path.exists("results.json"):
     with open("results.json", "r", encoding="utf-8") as f:
