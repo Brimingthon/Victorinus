@@ -15,7 +15,7 @@ INTENTS.message_content = True
 INTENTS.members = True
 
 bot = commands.Bot(command_prefix="!", intents=INTENTS)
-
+bot.run(TOKEN)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(BASE_DIR, "questions.json"), "r", encoding="utf-8") as f:
     questions = json.load(f)
