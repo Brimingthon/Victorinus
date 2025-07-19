@@ -55,7 +55,7 @@ async def вікторина(ctx):
 
     score = 0
 
-    for q in QUESTIONS:
+    for q in questions:
         options = "\n".join(f"{EMOJIS[i]} {opt}" for i, opt in enumerate(q["options"]))
         message = await channel.send(f"❓ {q['question']}\n\n{options}")
 
