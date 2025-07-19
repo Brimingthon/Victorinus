@@ -4,8 +4,13 @@ import asyncio
 import json
 import os
 from datetime import datetime
+from dotenv import load_dotenv
 
-TOKEN = ""
+load_dotenv()  # це читає .env файл (для локального запуску)
+
+TOKEN = os.getenv("TOKEN")  # а це витягує токен з середовища
+
+bot.run(TOKEN)
 INTENTS = discord.Intents.default()
 INTENTS.message_content = True
 INTENTS.members = True
