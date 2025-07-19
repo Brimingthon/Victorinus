@@ -10,7 +10,6 @@ load_dotenv()  # це читає .env файл (для локального за
 
 TOKEN = os.getenv("TOKEN")  # а це витягує токен з середовища
 
-bot.run(TOKEN)
 INTENTS = discord.Intents.default()
 INTENTS.message_content = True
 INTENTS.members = True
