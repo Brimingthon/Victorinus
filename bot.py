@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from discord.ui import View, Button
-import asyncio
+from discord import app_commands
 import json
 import os
 import sqlite3
@@ -22,30 +22,22 @@ INTENTS = discord.Intents.default()
 INTENTS.message_content = True
 INTENTS.members = True
 
-bot = commands.Bot(command_prefix="!", intents=INTENTS)
+bot = discord.Bot(intents=INTENTS)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "results.db")
-QUESTIONS_PATH = os.path.join(BASE_DIR, "questions.json")
+QUIZZES_DIR = os.path.join(BASE_DIR, "quizzes")
 
 # === DATABASE ===
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-
-    # Перевірка, чи таблиця існує і чи має неправильну схему
-    c.execute("PRAGMA table_info(results)")
-    columns = [col[1] for col in c.fetchall()]
-
-    if columns == ['user_id', 'user_name', 'score', 'timestamp']:
-        logging.warning("⚠️ Виявлено стару схему таблиці. Оновлюємо...")
-        c.execute("DROP TABLE IF EXISTS results")
-
     c.execute('''
         CREATE TABLE IF NOT EXISTS results (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id TEXT,
             user_name TEXT,
+            quiz_name TEXT,
             score INTEGER,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )
@@ -53,52 +45,50 @@ def init_db():
     conn.commit()
     conn.close()
 
-def save_result(user_id, user_name, score):
+def save_result(user_id, user_name, quiz_name, score):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute('INSERT INTO results (user_id, user_name, score) VALUES (?, ?, ?)', (user_id, user_name, score))
+    c.execute('INSERT INTO results (user_id, user_name, quiz_name, score) VALUES (?, ?, ?, ?)', (user_id, user_name, quiz_name, score))
     conn.commit()
     conn.close()
 
-def get_top_results(limit=5):
+def get_top_results(quiz_name, limit=5):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute('SELECT user_name, MAX(score) as max_score FROM results GROUP BY user_id ORDER BY max_score DESC LIMIT ?', (limit,))
+    c.execute('SELECT user_name, MAX(score) as max_score FROM results WHERE quiz_name = ? GROUP BY user_id ORDER BY max_score DESC LIMIT ?', (quiz_name, limit))
     results = c.fetchall()
     conn.close()
     return results
 
-def get_attempt_count(user_id):
+def get_attempt_count(user_id, quiz_name):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute('SELECT COUNT(*) FROM results WHERE user_id = ?', (user_id,))
+    c.execute('SELECT COUNT(*) FROM results WHERE user_id = ? AND quiz_name = ?', (user_id, quiz_name))
     result = c.fetchone()
     conn.close()
     return result[0] if result else 0
 
-# === QUESTIONS ===
-quiz_config = {}
+def list_quizzes():
+    return [f[:-5] for f in os.listdir(QUIZZES_DIR) if f.endswith(".json")]
 
-def load_questions():
-    global quiz_config
-    with open(QUESTIONS_PATH, "r", encoding="utf-8") as f:
+def load_quiz(quiz_name):
+    quiz_path = os.path.join(QUIZZES_DIR, f"{quiz_name}.json")
+    if not os.path.exists(quiz_path):
+        return None, None
+    with open(quiz_path, "r", encoding="utf-8") as f:
         data = json.load(f)
-        quiz_config = {
+        config = {
             "attempts": data.get("attempts", 1),
             "show_feedback": data.get("show_feedback", True)
         }
-        return data.get("questions", [])
+        return config, data.get("questions", [])
 
-questions = load_questions()
-
-# === BUTTON UI ===
 class QuizView(View):
     def __init__(self, user, correct_index, timeout_seconds):
         super().__init__(timeout=timeout_seconds)
         self.user = user
         self.correct_index = correct_index
         self.selected_index = None
-        self.result_message = None
         self.elapsed = 0
         self.start_time = datetime.now()
 
@@ -157,76 +147,78 @@ class ConfirmView(View):
         await interaction.response.edit_message(content="❌ Вікторина скасована.", view=self)
         self.stop()
 
-# === EVENTS ===
 @bot.event
 async def on_ready():
     init_db()
+    await bot.tree.sync()
     logging.info(f"🔔 Вікторинус активний як {bot.user}")
 
-@bot.command()
-async def reload_questions(ctx):
-    global questions
-    questions = load_questions()
-    await ctx.send("🔄 Питання перезавантажено.")
-    logging.info("📚 Питання перезавантажено вручну.")
+@bot.tree.command(name="вікторина", description="Почати конкретну вікторину")
+@app_commands.describe(name="Назва вікторини")
+@app_commands.autocomplete(name=lambda interaction, current: [
+    app_commands.Choice(name=q, value=q) for q in list_quizzes() if current.lower() in q.lower()
+])
+async def вікторина(interaction: discord.Interaction, name: str):
+    user = interaction.user
+    config, questions = load_quiz(name)
 
-@bot.command()
-async def вікторина(ctx):
-    user = ctx.author
-    attempt_count = get_attempt_count(str(user.id))
+    if not questions:
+        await interaction.response.send_message("❌ Вікторина не знайдена.", ephemeral=True)
+        return
 
-    if attempt_count >= quiz_config["attempts"]:
-        await ctx.send("❗ Ти вичерпав(-ла) кількість спроб на вікторину.")
-        logging.warning(f"{user} досяг максимальної кількості спроб.")
+    attempt_count = get_attempt_count(str(user.id), name)
+    if attempt_count >= config["attempts"]:
+        await interaction.response.send_message("❗ Ти вичерпав(-ла) кількість спроб на цю вікторину.", ephemeral=True)
         return
 
     try:
         dm = await user.create_dm()
-        await dm.send("📩 Ти готовий(-а) до проходження вікторини?")
-
+        await dm.send(f"📩 Ти готовий(-а) до проходження вікторини **{name}**?")
         view = ConfirmView(user)
-        confirm_msg = await dm.send("Натисни \"Почати\", щоб почати, або \"Скасувати\", щоб вийти:", view=view)
+        await dm.send("Натисни \"Почати\", щоб почати, або \"Скасувати\":", view=view)
         await view.wait()
-
         if not view.confirmed:
-            logging.warning(f"{user} скасував вікторину.")
             return
     except discord.Forbidden:
-        await ctx.send("❌ Не вдалося надіслати DM. Перевір, чи ти дозволяєш особисті повідомлення від учасників сервера.")
-        logging.error(f"Не вдалося надіслати DM до {user} (ID {user.id})")
+        await interaction.response.send_message("❌ Не вдалося надіслати DM.", ephemeral=True)
         return
 
-    logging.info(f"{user} (ID {user.id}) розпочав вікторину. Спроба №{attempt_count + 1}")
     score = 0
-
     for q in questions:
         timeout = q.get("timeout", 20)
         options = "\n".join([f"{chr(0x0410 + i)}. {opt}" for i, opt in enumerate(q["options"])])
         msg = await dm.send(f"❓ {q['question']}\n\n{options}")
-
         view = QuizView(user, q["answer_index"], timeout)
         await msg.edit(view=view)
         await view.wait()
-
         is_correct = (view.selected_index == q["answer_index"])
         points = max(0, 100 - view.elapsed * 5) if is_correct else 0
         score += points
-
-        if quiz_config["show_feedback"]:
+        if config["show_feedback"]:
             await dm.send("✅ Правильно!" if is_correct else "❌ Неправильно.")
 
-    save_result(str(user.id), user.name, score)
-    logging.info(f"{user} завершив вікторину з рахунком {score}")
-    await dm.send(f"🏁 Вікторина завершена! Твій рахунок: **{score} балів**.")
+    save_result(str(user.id), user.name, name, score)
+    await dm.send(f"🏁 Вікторина **{name}** завершена! Твій рахунок: **{score} балів**.")
 
-@bot.command()
-async def рейтинг(ctx):
-    results = get_top_results()
+@bot.tree.command(name="рейтинг", description="Показати ТОП-5 по вікторині")
+@app_commands.describe(name="Назва вікторини")
+@app_commands.autocomplete(name=lambda interaction, current: [
+    app_commands.Choice(name=q, value=q) for q in list_quizzes() if current.lower() in q.lower()
+])
+async def рейтинг(interaction: discord.Interaction, name: str):
+    results = get_top_results(name)
     if not results:
-        await ctx.send("Ще ніхто не проходив вікторину.")
+        await interaction.response.send_message("Немає результатів для цієї вікторини.", ephemeral=True)
         return
-
     top = "\n".join([f"{i+1}. {name} — {score} балів" for i, (name, score) in enumerate(results)])
-    await ctx.send(f"🏆 **ТОП-5 гравців:**\n{top}")
+    await interaction.response.send_message(f"🏆 **ТОП-5 — {name}:**\n{top}")
+
+@bot.tree.command(name="вікторини", description="Список доступних вікторин")
+async def вікторини(interaction: discord.Interaction):
+    names = list_quizzes()
+    if not names:
+        await interaction.response.send_message("Немає доступних вікторин.", ephemeral=True)
+        return
+    await interaction.response.send_message("📚 Доступні вікторини:\n" + "\n".join(f"- {n}" for n in names), ephemeral=True)
 
 bot.run(TOKEN)
