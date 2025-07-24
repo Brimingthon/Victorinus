@@ -1,7 +1,7 @@
 {
-  "attempts": 2,
+  "attempts": 1,
   "show_feedback": false,
-  "auto_delete_dm": true,
+  "auto_delete_dm": false,
   "questions": [
     {
       "question": "Скільки буде 2 + 2?",
