@@ -1,10 +1,10 @@
-# 📁 bot.py — запуск dm_worker
+# 📁 bot.py
 import discord
 from discord.ext import commands
 from utils.logger import setup_logger
 from db.postgres import init_db
 from commands.quiz import setup_commands
-from utils.dm_queue import dm_worker
+from utils.dm_queue import start_dm_workers
 import os
 import asyncio
 from dotenv import load_dotenv
@@ -31,7 +31,7 @@ bot = QuizBot()
 @bot.event
 async def on_ready():
     await init_db()
-    asyncio.create_task(dm_worker())
+    await start_dm_workers(2)
     import logging
     logging.info(f"🔔 Вікторинус активний як {bot.user}")
 

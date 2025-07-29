@@ -1,4 +1,4 @@
-# 📁 commands/quiz.py (оновлено)
+# 📁 commands/quiz.py
 import discord
 from discord import app_commands
 from db import postgres as repository
@@ -53,21 +53,20 @@ async def quiz(interaction: discord.Interaction, name: str):
         view = QuizView(user, q.answer_index, q.timeout)
         await msg.edit(view=view)
 
-        # Таймер зворотного відліку в самому повідомленні (опційно)
-        for remaining in range(q.timeout, 0, -5):
-            await asyncio.sleep(5)
-            try:
-                await msg.edit(content=f"❓ {q.question}\n\n{options}\n\n⏳ Залишилось: {remaining} секунд.", view=view)
-            except discord.HTTPException:
-                break
-            if view.is_finished():
-                break
+        # Оновлення лише за 10 секунд до кінця
+        if q.timeout > 10:
+            await asyncio.sleep(q.timeout - 10)
+            if not view.is_finished():
+                try:
+                    await msg.edit(content=f"❓ {q.question}\n\n{options}\n\n⏳ Залишилось 10 секунд.", view=view)
+                except discord.HTTPException:
+                    pass
 
         await view.wait()
 
         is_correct = (view.selected_index == q.answer_index)
         elapsed = view.elapsed
-        points = max(0, 100 - elapsed * 5) if is_correct else 0
+        points = max(0, 100 - elapsed * 2) if is_correct else 0
         score += points
 
         await repository.save_question_result(
@@ -87,23 +86,24 @@ async def quiz(interaction: discord.Interaction, name: str):
     await send_dm(user, f"🏁 Вікторина **{name}** завершена! Твій рахунок: **{score} балів**.")
 
     if config.auto_delete_dm:
-        await asyncio.sleep(20)
+        await asyncio.sleep(5)
         for m in messages_to_delete:
             try:
                 await m.delete()
             except (discord.Forbidden, discord.HTTPException):
                 continue
 
-@app_commands.command(name="ranking", description="Показати ТОП-5 по вікторині")
-@app_commands.describe(name="Назва вікторини")
-@app_commands.autocomplete(name=autocomplete_quizzes)
-async def ranking(interaction: discord.Interaction, name: str):
-    results = await repository.get_top_results(name)
-    if not results:
-        await interaction.response.send_message("Немає результатів для цієї вікторини.", ephemeral=True)
-        return
-    top = "\n".join([f"{i+1}. {username} — {score} балів" for i, (username, score) in enumerate(results)])
-    await interaction.response.send_message(f"🏆 **ТОП-5 — {name}:**\n{top}")
+# === /ranking тимчасово вимкнений
+# @app_commands.command(name="ranking", description="Показати ТОП-5 по вікторині")
+# @app_commands.describe(name="Назва вікторини")
+# @app_commands.autocomplete(name=autocomplete_quizzes)
+# async def ranking(interaction: discord.Interaction, name: str):
+#     results = await repository.get_top_results(name)
+#     if not results:
+#         await interaction.response.send_message("Немає результатів для цієї вікторини.", ephemeral=True)
+#         return
+#     top = "\n".join([f"{i+1}. {username} — {score} балів" for i, (username, score) in enumerate(results)])
+#     await interaction.response.send_message(f"🏆 **ТОП-5 — {name}:**\n{top}")
 
 @app_commands.command(name="quizzes", description="Список доступних вікторин")
 async def quizzes(interaction: discord.Interaction):
@@ -116,6 +116,5 @@ async def quizzes(interaction: discord.Interaction):
 # === Функція для реєстрації команд ===
 def setup_commands(bot: discord.ext.commands.Bot):
     bot.tree.add_command(quiz)
-    bot.tree.add_command(ranking)
+    # bot.tree.add_command(ranking)  # тимчасово закоментовано
     bot.tree.add_command(quizzes)
-
