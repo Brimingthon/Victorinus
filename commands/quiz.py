@@ -1,9 +1,10 @@
-# 📁 commands/quiz.py
+# 📁 commands/quiz.py (оновлення)
 import discord
 from discord import app_commands
-from db import repository
+from db import postgres as repository
 from services.quiz_logic import load_quiz, list_quizzes
 from views.quiz_view import QuizView, ConfirmView
+from utils.dm_queue import send_dm
 
 # === Автокомпліт ===
 async def autocomplete_quizzes(interaction: discord.Interaction, current: str):
@@ -30,10 +31,9 @@ async def quiz(interaction: discord.Interaction, name: str):
     await interaction.response.send_message("📬 Перевір свої DM — вікторина надіслана туди.", ephemeral=True)
 
     try:
-        dm = await user.create_dm()
-        await dm.send(f"📩 Ти готовий(-а) до проходження вікторини **{name}**?")
+        await send_dm(user, f"📩 Ти готовий(-а) до проходження вікторини **{name}**?")
         view = ConfirmView(user)
-        msg = await dm.send("Натисни \"Почати\", щоб почати, або \"Скасувати\":", view=view)
+        msg = await user.send("Натисни \"Почати\", щоб почати, або \"Скасувати\":", view=view)
         await view.wait()
         if not view.confirmed:
             return
@@ -45,7 +45,7 @@ async def quiz(interaction: discord.Interaction, name: str):
     messages_to_delete = []
     for q in config.questions:
         options = "\n".join([f"{chr(0x0410 + i)}. {opt}" for i, opt in enumerate(q.options)])
-        msg = await dm.send(f"❓ {q.question}\n\n{options}")
+        msg = await user.send(f"❓ {q.question}\n\n{options}")
         messages_to_delete.append(msg)
         view = QuizView(user, q.answer_index, q.timeout)
         await msg.edit(view=view)
@@ -56,12 +56,11 @@ async def quiz(interaction: discord.Interaction, name: str):
         score += points
 
         if config.show_feedback:
-            feedback = await dm.send("✅ Правильно!" if is_correct else "❌ Неправильно.")
-            messages_to_delete.append(feedback)
+            feedback_text = "✅ Правильно!" if is_correct else "❌ Неправильно."
+            await send_dm(user, feedback_text)
 
     await repository.save_result(str(user.id), user.name, name, score)
-    final_msg = await dm.send(f"🏁 Вікторина **{name}** завершена! Твій рахунок: **{score} балів**.")
-    messages_to_delete.append(final_msg)
+    await send_dm(user, f"🏁 Вікторина **{name}** завершена! Твій рахунок: **{score} балів**.")
 
     if config.auto_delete_dm:
         import asyncio
