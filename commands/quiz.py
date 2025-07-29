@@ -6,6 +6,7 @@ from services.quiz_logic import load_quiz, list_quizzes
 from views.quiz_view import QuizView, ConfirmView
 from utils.dm_queue import send_dm
 import asyncio
+from datetime import datetime
 
 # === Автокомпліт ===
 async def autocomplete_quizzes(interaction: discord.Interaction, current: str):
@@ -69,6 +70,8 @@ async def quiz(interaction: discord.Interaction, name: str):
         points = max(0, 100 - elapsed * 2) if is_correct else 0
         score += points
 
+        before = datetime.now()
+
         await repository.save_question_result(
             user_id=str(user.id),
             quiz_name=name,
@@ -77,7 +80,7 @@ async def quiz(interaction: discord.Interaction, name: str):
             points=points,
             is_correct=is_correct
         )
-
+        print(f"⏱ Save took: {datetime.now() - before}")
         if config.show_feedback:
             feedback_text = "✅ Правильно!" if is_correct else "❌ Неправильно."
             await send_dm(user, feedback_text)
