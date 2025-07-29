@@ -40,7 +40,7 @@
       "timeout": 30
     },
     {
-      "question": "У що термінал перетворуює зібрані Відоголоси (Reverberations)",
+      "question": "У що термінал перетворуює зібрані Відоголоси (Reverberations)?",
       "options": ["Тасецит (Tacetite)", "Відлуння (Echo)", "Дисонанси (Tacet discords)", "Аномальні частоти (Abnormal frequencies)"],
       "answer_index": 1,
       "timeout": 30

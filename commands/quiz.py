@@ -6,6 +6,7 @@ from services.quiz_logic import load_quiz, list_quizzes
 from views.quiz_view import QuizView, ConfirmView
 from utils.dm_queue import send_dm
 import asyncio
+import logging
 from datetime import datetime
 
 # === Автокомпліт ===
@@ -46,6 +47,7 @@ async def quiz(interaction: discord.Interaction, name: str):
     score = 0
     messages_to_delete = []
     for idx, q in enumerate(config.questions):
+        logging.info(f"[{datetime.now()}] 📤 Надсилаємо питання #{idx + 1}")
         options = "\n".join([f"{chr(0x0410 + i)}. {opt}" for i, opt in enumerate(q.options)])
         content = f"❓ {q.question}\n\n{options}\n\n⏳ У тебе {q.timeout} секунд."
         msg = await user.send(content)
@@ -54,24 +56,17 @@ async def quiz(interaction: discord.Interaction, name: str):
         view = QuizView(user, q.answer_index, q.timeout)
         await msg.edit(view=view)
 
-        # Оновлення лише за 10 секунд до кінця
-        if q.timeout > 10:
-            await asyncio.sleep(q.timeout - 10)
-            if not view.is_finished():
-                try:
-                    await msg.edit(content=f"❓ {q.question}\n\n{options}\n\n⏳ Залишилось 10 секунд.", view=view)
-                except discord.HTTPException:
-                    pass
-
+        logging.info(f"[{datetime.now()}] ⏳ Очікуємо відповідь користувача...")
         await view.wait()
+        logging.info(f"[{datetime.now()}] ✅ Користувач відповів")
 
         is_correct = (view.selected_index == q.answer_index)
         elapsed = view.elapsed
-        points = max(0, 100 - elapsed * 2) if is_correct else 0
+        points = max(0, 100 - elapsed * 3) if is_correct else 0
         score += points
 
-        before = datetime.now()
-
+        logging.info(f"[{datetime.now()}] 💾 Починаємо збереження результату...")
+        start = datetime.now()
         await repository.save_question_result(
             user_id=str(user.id),
             quiz_name=name,
@@ -80,10 +75,13 @@ async def quiz(interaction: discord.Interaction, name: str):
             points=points,
             is_correct=is_correct
         )
-        print(f"⏱ Save took: {datetime.now() - before}")
+        logging.info(f"[{datetime.now()}] ⏱ Save took: {datetime.now() - start}")
+
         if config.show_feedback:
             feedback_text = "✅ Правильно!" if is_correct else "❌ Неправильно."
+            logging.info(f"[{datetime.now()}] 📬 Відправка фідбеку...")
             await send_dm(user, feedback_text)
+            logging.info(f"[{datetime.now()}] 📨 Фідбек надіслано")
 
     await repository.save_result(str(user.id), user.name, name, score)
     await send_dm(user, f"🏁 Вікторина **{name}** завершена! Твій рахунок: **{score} балів**.")
