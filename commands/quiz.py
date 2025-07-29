@@ -1,10 +1,11 @@
-# 📁 commands/quiz.py (оновлення)
+# 📁 commands/quiz.py (оновлено)
 import discord
 from discord import app_commands
 from db import postgres as repository
 from services.quiz_logic import load_quiz, list_quizzes
 from views.quiz_view import QuizView, ConfirmView
 from utils.dm_queue import send_dm
+import asyncio
 
 # === Автокомпліт ===
 async def autocomplete_quizzes(interaction: discord.Interaction, current: str):
@@ -43,17 +44,40 @@ async def quiz(interaction: discord.Interaction, name: str):
 
     score = 0
     messages_to_delete = []
-    for q in config.questions:
+    for idx, q in enumerate(config.questions):
         options = "\n".join([f"{chr(0x0410 + i)}. {opt}" for i, opt in enumerate(q.options)])
-        msg = await user.send(f"❓ {q.question}\n\n{options}")
+        content = f"❓ {q.question}\n\n{options}\n\n⏳ У тебе {q.timeout} секунд."
+        msg = await user.send(content)
         messages_to_delete.append(msg)
+
         view = QuizView(user, q.answer_index, q.timeout)
         await msg.edit(view=view)
+
+        # Таймер зворотного відліку в самому повідомленні (опційно)
+        for remaining in range(q.timeout, 0, -5):
+            await asyncio.sleep(5)
+            try:
+                await msg.edit(content=f"❓ {q.question}\n\n{options}\n\n⏳ Залишилось: {remaining} секунд.", view=view)
+            except discord.HTTPException:
+                break
+            if view.is_finished():
+                break
+
         await view.wait()
 
         is_correct = (view.selected_index == q.answer_index)
-        points = max(0, 100 - view.elapsed * 5) if is_correct else 0
+        elapsed = view.elapsed
+        points = max(0, 100 - elapsed * 5) if is_correct else 0
         score += points
+
+        await repository.save_question_result(
+            user_id=str(user.id),
+            quiz_name=name,
+            question_index=idx,
+            elapsed_seconds=elapsed,
+            points=points,
+            is_correct=is_correct
+        )
 
         if config.show_feedback:
             feedback_text = "✅ Правильно!" if is_correct else "❌ Неправильно."
@@ -63,7 +87,6 @@ async def quiz(interaction: discord.Interaction, name: str):
     await send_dm(user, f"🏁 Вікторина **{name}** завершена! Твій рахунок: **{score} балів**.")
 
     if config.auto_delete_dm:
-        import asyncio
         await asyncio.sleep(20)
         for m in messages_to_delete:
             try:
@@ -95,3 +118,4 @@ def setup_commands(bot: discord.ext.commands.Bot):
     bot.tree.add_command(quiz)
     bot.tree.add_command(ranking)
     bot.tree.add_command(quizzes)
+
