@@ -1,7 +1,7 @@
 {
   "attempts": 5,
   "show_feedback": false,
-  "auto_delete_dm": true,
+  "auto_delete_dm": false,
   "questions": [
     {
       "question": "Як називається трагедія яка змінила світ та посіяла хаос до початку історії Ровера?",

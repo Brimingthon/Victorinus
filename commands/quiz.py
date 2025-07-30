@@ -62,7 +62,7 @@ async def quiz(interaction: discord.Interaction, name: str):
 
         is_correct = (view.selected_index == q.answer_index)
         elapsed = view.elapsed
-        points = max(0, 100 - elapsed * 3) if is_correct else 0
+        points = max(0, 100 - elapsed * 2) if is_correct else 0
         score += points
 
         logging.info(f"[{datetime.now()}] 💾 Починаємо збереження результату...")
