@@ -5,6 +5,8 @@ from db import postgres as repository
 from services.quiz_logic import load_quiz, list_quizzes
 from views.quiz_view import QuizView, ConfirmView
 from utils.dm_queue import send_dm
+from utils.delete_queue import enqueue_delete
+import time
 import asyncio
 import logging
 from datetime import datetime
@@ -47,25 +49,25 @@ async def quiz(interaction: discord.Interaction, name: str):
     score = 0
     messages_to_delete = []
     for idx, q in enumerate(config.questions):
-        logging.info(f"[{datetime.now()}] 📤 Надсилаємо питання #{idx + 1}")
+        #logging.info(f"[{datetime.now()}] Надсилаємо питання #{idx + 1}")
+
         options = "\n".join([f"{chr(0x0410 + i)}. {opt}" for i, opt in enumerate(q.options)])
-        content = f"❓ {q.question}\n\n{options}\n\n⏳ У тебе {q.timeout} секунд."
-        msg = await user.send(content)
+        deadline = int(time.time()) + q.timeout
+        content = f"❓ {q.question}\n\n{options}\n\n⏳ Відповідь до <t:{deadline}:R>."
+
+        msg = await user.send(content, view=view)
         messages_to_delete.append(msg)
 
-        view = QuizView(user, q.answer_index, q.timeout)
-        await msg.edit(view=view)
-
-        logging.info(f"[{datetime.now()}] ⏳ Очікуємо відповідь користувача...")
+        #logging.info(f"[{datetime.now()}]  Очікуємо відповідь користувача...")
         await view.wait()
-        logging.info(f"[{datetime.now()}] ✅ Користувач відповів")
+        #logging.info(f"[{datetime.now()}]  Користувач відповів")
 
         is_correct = (view.selected_index == q.answer_index)
         elapsed = view.elapsed
         points = max(0, 100 - elapsed * 2) if is_correct else 0
         score += points
 
-        logging.info(f"[{datetime.now()}] 💾 Починаємо збереження результату...")
+        #logging.info(f"[{datetime.now()}] Починаємо збереження результату...")
         start = datetime.now()
         await repository.save_question_result(
             user_id=str(user.id),
@@ -75,7 +77,7 @@ async def quiz(interaction: discord.Interaction, name: str):
             points=points,
             is_correct=is_correct
         )
-        logging.info(f"[{datetime.now()}] ⏱ Save took: {datetime.now() - start}")
+        #logging.info(f"[{datetime.now()}] Save took: {datetime.now() - start}")
 
         if config.show_feedback:
             feedback_text = "✅ Правильно!" if is_correct else "❌ Неправильно."
@@ -90,7 +92,7 @@ async def quiz(interaction: discord.Interaction, name: str):
         await asyncio.sleep(5)
         for m in messages_to_delete:
             try:
-                await m.delete()
+                await enqueue_delete(m)
             except (discord.Forbidden, discord.HTTPException):
                 continue
 
