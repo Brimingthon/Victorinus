@@ -22,18 +22,21 @@ async def autocomplete_quizzes(interaction: discord.Interaction, current: str):
 @app_commands.describe(name="Назва вікторини")
 @app_commands.autocomplete(name=autocomplete_quizzes)
 async def quiz(interaction: discord.Interaction, name: str):
+    await interaction.response.defer(ephemeral=True)  # <-- одразу підтверджуємо
+
     user = interaction.user
     config = load_quiz(name)
     if not config:
-        await interaction.response.send_message("❌ Вікторина не знайдена.", ephemeral=True)
+        await interaction.followup.send("❌ Вікторина не знайдена.", ephemeral=True)
         return
 
     attempt_count = await repository.get_attempt_count(str(user.id), name)
     if attempt_count >= config.attempts:
-        await interaction.response.send_message("❗ Ти вичерпав(-ла) кількість спроб на цю вікторину.", ephemeral=True)
+        await interaction.followup.send("❗ Ти вичерпав(-ла) кількість спроб на цю вікторину.", ephemeral=True)
         return
 
-    await interaction.response.send_message("📬 Перевір свої DM — вікторина надіслана туди.", ephemeral=True)
+    await interaction.followup.send("📬 Перевір свої DM — вікторина надіслана туди.", ephemeral=True)
+
 
     try:
         await send_dm(user, f"📩 Ти готовий(-а) до проходження вікторини **{name}**?")
