@@ -1,5 +1,7 @@
 from discord.ui import View, Button
 from datetime import datetime
+from discord.ui import View, Button
+import discord
 import discord
 
 class QuizView(View):
@@ -49,3 +51,29 @@ class QuizView(View):
     @discord.ui.button(label="Г", style=discord.ButtonStyle.primary)
     async def d_button(self, interaction: discord.Interaction, button: Button):
         await self.handle_answer(interaction, 3)
+
+
+class ConfirmView(View):
+    def __init__(self, user):
+        super().__init__(timeout=30)
+        self.user = user
+        self.confirmed = False
+
+    async def interaction_check(self, interaction: discord.Interaction):
+        return interaction.user.id == self.user.id
+
+    @discord.ui.button(label="Почати", style=discord.ButtonStyle.success)
+    async def confirm_button(self, interaction: discord.Interaction, button: Button):
+        self.confirmed = True
+        for child in self.children:
+            child.disabled = True
+        await interaction.response.edit_message(content="✅ Починаємо!", view=self)
+        self.stop()
+
+    @discord.ui.button(label="Скасувати", style=discord.ButtonStyle.danger)
+    async def cancel_button(self, interaction: discord.Interaction, button: Button):
+        self.confirmed = False
+        for child in self.children:
+            child.disabled = True
+        await interaction.response.edit_message(content="❌ Вікторина скасована.", view=self)
+        self.stop()
