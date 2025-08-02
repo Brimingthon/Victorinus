@@ -55,7 +55,10 @@ async def quiz(interaction: discord.Interaction, name: str):
         deadline = int(time.time()) + q.timeout
         content = f"❓ {q.question}\n\n{options}\n\n⏳ Відповідь до <t:{deadline}:R>."
 
+        view = QuizView(user, timeout_seconds=q.timeout)
+
         msg = await user.send(content, view=view)
+        view.message = msg
         messages_to_delete.append(msg)
 
         #logging.info(f"[{datetime.now()}]  Очікуємо відповідь користувача...")

@@ -3,13 +3,13 @@ from datetime import datetime
 import discord
 
 class QuizView(View):
-    def __init__(self, user, correct_index, timeout_seconds):
+    def __init__(self, user, timeout_seconds):
         super().__init__(timeout=timeout_seconds)
         self.user = user
-        self.correct_index = correct_index
         self.selected_index = None
-        self.elapsed = 0
-        self.start_time = datetime.now()
+        self.elapsed = None
+        self.start_time = datetime.utcnow()
+        self.message = None
 
     async def interaction_check(self, interaction: discord.Interaction):
         return interaction.user.id == self.user.id
@@ -20,9 +20,18 @@ class QuizView(View):
 
     async def handle_answer(self, interaction: discord.Interaction, index: int):
         self.selected_index = index
-        self.elapsed = (datetime.now() - self.start_time).seconds
+        self.elapsed = int((datetime.utcnow() - self.start_time).total_seconds())
         await self.disable_buttons()
         await interaction.response.edit_message(view=self)
+        self.stop()
+
+    async def on_timeout(self):
+        await self.disable_buttons()
+        try:
+            if self.message:
+                await self.message.edit(view=self)
+        except Exception:
+            pass
         self.stop()
 
     @discord.ui.button(label="А", style=discord.ButtonStyle.primary)
@@ -40,28 +49,3 @@ class QuizView(View):
     @discord.ui.button(label="Г", style=discord.ButtonStyle.primary)
     async def d_button(self, interaction: discord.Interaction, button: Button):
         await self.handle_answer(interaction, 3)
-
-class ConfirmView(View):
-    def __init__(self, user):
-        super().__init__(timeout=30)
-        self.user = user
-        self.confirmed = False
-
-    async def interaction_check(self, interaction: discord.Interaction):
-        return interaction.user.id == self.user.id
-
-    @discord.ui.button(label="Почати", style=discord.ButtonStyle.success)
-    async def confirm_button(self, interaction: discord.Interaction, button: Button):
-        self.confirmed = True
-        for child in self.children:
-            child.disabled = True
-        await interaction.response.edit_message(content="✅ Починаємо!", view=self)
-        self.stop()
-
-    @discord.ui.button(label="Скасувати", style=discord.ButtonStyle.danger)
-    async def cancel_button(self, interaction: discord.Interaction, button: Button):
-        self.confirmed = False
-        for child in self.children:
-            child.disabled = True
-        await interaction.response.edit_message(content="❌ Вікторина скасована.", view=self)
-        self.stop()
