@@ -1,7 +1,10 @@
 {
+  "active": true,
+  "creator_id": "env:CREATOR_ID",
+  "admins": ["env:CREATOR_ID"],
   "attempts": 5,
   "show_feedback": false,
-  "auto_delete_dm": false,
+  "auto_delete_dm": true,
   "questions": [
     {
       "question": "Як називається трагедія яка змінила світ та посіяла хаос до початку історії Ровера?",

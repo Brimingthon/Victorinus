@@ -1,7 +1,5 @@
-from discord.ui import View, Button
 from datetime import datetime
 from discord.ui import View, Button
-import discord
 import discord
 
 class QuizView(View):

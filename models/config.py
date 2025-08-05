@@ -8,6 +8,8 @@ class QuizQuestion(BaseModel):
     timeout: int = 20
 
 class QuizConfig(BaseModel):
+    creator_id: str
+    active: bool = True
     attempts: int = 1
     show_feedback: bool = True
     auto_delete_dm: bool = False
