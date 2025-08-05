@@ -5,7 +5,8 @@ from utils.logger import setup_logger
 from db.postgres import init_db
 from commands.quiz import setup_commands
 from utils.dm_queue import start_dm_workers
-from utils.delete_queue import delete_worker
+from utils.delete_queue import start_delete_workers
+
 import os
 import asyncio
 from dotenv import load_dotenv
@@ -33,7 +34,7 @@ bot = QuizBot()
 async def on_ready():
     await init_db()
     await start_dm_workers(2)
-    asyncio.create_task(delete_worker())
+    start_delete_workers()
     import logging
     logging.info(f"🔔 Вікторинус активний як {bot.user}")
 
