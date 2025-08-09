@@ -25,7 +25,7 @@
       "timeout": 30
     },
     {
-      "question": "Що залишається після знищення дисонансу?",
+      "question": "Що залишається після знищення Дисонансу (Tacet discord)?",
       "options": ["Відлуння (Echo)", "Відголос (Reverberation)", "Хвильове спотворення (Waveworn Phenomenon)", "Тасецит (Tacetite)"],
       "answer_index": 1,
       "timeout": 30
