@@ -5,7 +5,7 @@ import logging
 _queue = asyncio.Queue()
 
 NUM_DELETE_WORKERS = 2
-DELAY_BETWEEN_DELETES = 1.2  # безпечна затримка
+DELAY_BETWEEN_DELETES = 2.0  # безпечна затримка
 
 async def enqueue_delete(message: discord.Message):
     await _queue.put(message)
